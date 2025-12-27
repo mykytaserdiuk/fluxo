@@ -34,7 +34,7 @@ type EventBus struct {
 	sync.Mutex
 }
 
-func New() Bus {
+func NewEventBus() Bus {
 	return &EventBus{
 		subs:  map[string][]handler{},
 		Mutex: sync.Mutex{},
@@ -83,8 +83,6 @@ func (b *EventBus) callHandler(hand handler, args ...any) {
 }
 
 func (b *EventBus) removeHandler(id string, index int) {
-	b.Lock()
-	defer b.Unlock()
 	b.subs[id] = append(b.subs[id][:index], b.subs[id][index+1:]...)
 }
 

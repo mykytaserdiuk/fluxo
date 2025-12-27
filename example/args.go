@@ -11,7 +11,7 @@ const (
 )
 
 func mainArgs() {
-	bus := fluxo.New()
+	bus := fluxo.NewEventBus()
 
 	// With args in func
 	err := bus.Subscribe(newFollowerE, func(name string) {

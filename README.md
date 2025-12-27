@@ -43,7 +43,7 @@ bus.Subscribe("new_follower", func() {
 })
 
 // Subscribe with multiple arguments
-bus.Subscribe("new_follower", func(name, lastName string) {
+bus.Subscribe("new_follower", func(name, lastName string) { // or with pointer
     fmt.Println("Follower name: ", name, lastName)
 })
 

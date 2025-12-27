@@ -11,7 +11,7 @@ const (
 )
 
 func main() {
-	bus := fluxo.New()
+	bus := fluxo.NewEventBus()
 	handler := func(data string) {
 		fmt.Println("New message from HR: ", data)
 	}

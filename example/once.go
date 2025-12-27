@@ -12,7 +12,7 @@ const (
 )
 
 func mainOnce() {
-	bus := fluxo.New()
+	bus := fluxo.NewEventBus()
 	t := time.Date(2025, 12, 31, 12, 12, 12, 12, time.UTC)
 
 	bus.SubscribeOnce(onExit, func(t time.Time) {

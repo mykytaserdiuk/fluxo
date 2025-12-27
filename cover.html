@@ -1,0 +1,384 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>fluxo: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/mykytaserdiuk/fluxo/bus.go (72.2%)</option>
+				
+				<option value="file1">github.com/mykytaserdiuk/fluxo/example/args.go (0.0%)</option>
+				
+				<option value="file2">github.com/mykytaserdiuk/fluxo/example/once.go (0.0%)</option>
+				
+				<option value="file3">github.com/mykytaserdiuk/fluxo/example/unsub.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package fluxo
+
+import (
+        "reflect"
+        "sync"
+)
+
+type handler struct {
+        callback reflect.Value
+
+        // if true, will the handler be executed once
+        once bool
+        // add async
+}
+type BusOnce interface {
+        // the handler will be executed only once, can be unsubscribed
+        SubscribeOnce(id string, fn any) error
+}
+type Bus interface {
+        // error if fn is not a function
+        Subscribe(id string, fn any) error
+        // Returns error if there are no callbacks subscribed to the topic.
+        Unsubscribe(id string, fn any) error
+        // Publish/Send a new event, where
+        // id is a topic or a event name
+        Emit(id string, args ...any)
+        // Close all handlers for the selected ID
+        Unregister(id string) error
+        BusOnce
+}
+
+type EventBus struct {
+        subs map[string][]handler
+        sync.Mutex
+}
+
+func NewEventBus() Bus <span class="cov8" title="1">{
+        return &amp;EventBus{
+                subs:  map[string][]handler{},
+                Mutex: sync.Mutex{},
+        }
+}</span>
+
+func (b *EventBus) onSubscribe(id string, fn any, handler handler) error <span class="cov8" title="1">{
+        if reflect.ValueOf(fn).Kind() != reflect.Func </span><span class="cov8" title="1">{
+                return ErrNotAFunc
+        }</span>
+        <span class="cov8" title="1">b.Lock()
+        defer b.Unlock()
+        b.subs[id] = append(b.subs[id], handler)
+
+        return nil</span>
+}
+
+func (b *EventBus) argsToValues(args ...any) []reflect.Value <span class="cov8" title="1">{
+        values := make([]reflect.Value, len(args))
+        for i, a := range args </span><span class="cov8" title="1">{
+                values[i] = reflect.ValueOf(a)
+        }</span>
+
+        <span class="cov8" title="1">return values</span>
+}
+
+func (b *EventBus) prepareArguments(hand handler, args ...any) []reflect.Value <span class="cov8" title="1">{
+        vals := b.argsToValues(args...)
+        expectedParams := hand.callback.Type().NumIn()
+
+        if expectedParams &gt; len(args) </span><span class="cov8" title="1">{
+                missingPar := make([]reflect.Value, expectedParams-len(args))
+                for j := 0; j &lt; len(missingPar); j++ </span><span class="cov8" title="1">{
+                        missingPar[j] = reflect.Zero(hand.callback.Type().In(len(args) + j))
+                }</span>
+                <span class="cov8" title="1">return append(vals, missingPar...)</span>
+        } else<span class="cov8" title="1"> if expectedParams &lt; len(args) </span><span class="cov8" title="1">{
+                return vals[0:expectedParams]
+        }</span>
+        <span class="cov8" title="1">return vals</span>
+}
+
+func (b *EventBus) callHandler(hand handler, args ...any) <span class="cov8" title="1">{
+        vals := b.prepareArguments(hand, args...)
+        hand.callback.Call(vals)
+}</span>
+
+func (b *EventBus) removeHandler(id string, index int) <span class="cov8" title="1">{
+        b.subs[id] = append(b.subs[id][:index], b.subs[id][index+1:]...)
+}</span>
+
+func (b *EventBus) Emit(id string, args ...any) <span class="cov8" title="1">{
+        if len(b.subs) == 0 || len(b.subs[id]) == 0 </span><span class="cov8" title="1">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">b.Lock()
+        handlers := make([]handler, len(b.subs[id]))
+        copy(handlers, b.subs[id])
+        b.Unlock()
+
+        for i := len(handlers) - 1; i &gt;= 0; i-- </span><span class="cov8" title="1">{
+                hand := handlers[i]
+                b.callHandler(hand, args...)
+
+                if hand.once </span><span class="cov8" title="1">{
+                        b.Lock()
+                        b.removeHandler(id, i)
+                        b.Unlock()
+                }</span>
+        }
+}
+
+func (b *EventBus) Subscribe(id string, fn any) error <span class="cov8" title="1">{
+        return b.onSubscribe(id, fn, handler{
+                callback: reflect.ValueOf(fn),
+                once:     false,
+        })
+}</span>
+
+func (b *EventBus) Unsubscribe(id string, fn any) error <span class="cov0" title="0">{
+        handlers := b.subs[id]
+        if len(handlers) == 0 </span><span class="cov0" title="0">{
+                return ErrNoHandlers
+        }</span>
+        <span class="cov0" title="0">for i, h := range handlers </span><span class="cov0" title="0">{
+                val := reflect.ValueOf(fn)
+                if h.callback.Type() == val.Type() &amp;&amp;
+                        h.callback.Pointer() == val.Pointer() </span><span class="cov0" title="0">{
+                        b.removeHandler(id, i)
+                }</span>
+        }
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+func (b *EventBus) SubscribeOnce(id string, fn any) error <span class="cov8" title="1">{
+        return b.onSubscribe(id, fn, handler{
+                callback: reflect.ValueOf(fn),
+                once:     true,
+        })
+}</span>
+
+func (b *EventBus) Unregister(id string) error <span class="cov0" title="0">{
+        handlers := b.subs[id]
+        if len(handlers) == 0 </span><span class="cov0" title="0">{
+                return ErrNoHandlers
+        }</span>
+        <span class="cov0" title="0">b.Lock()
+        defer b.Unlock()
+
+        b.subs[id] = []handler{}
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package main
+
+import (
+        "fmt"
+
+        "github.com/mykytaserdiuk/fluxo"
+)
+
+const (
+        newFollowerE = "main:new_follower"
+)
+
+func mainArgs() <span class="cov0" title="0">{
+        bus := fluxo.NewEventBus()
+
+        // With args in func
+        err := bus.Subscribe(newFollowerE, func(name string) </span><span class="cov0" title="0">{
+                fmt.Println("NEW FOLLOWER: ", name)
+        }</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                fmt.Println(err.Error())
+        }</span>
+        // Without args
+        <span class="cov0" title="0">err = bus.Subscribe(newFollowerE, func() </span><span class="cov0" title="0">{
+                fmt.Println("You have new follower!")
+        }</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                fmt.Println(err.Error())
+        }</span>
+
+        // With an abundance of arguments
+        <span class="cov0" title="0">err = bus.Subscribe(newFollowerE, func(name, lastName string) </span><span class="cov0" title="0">{
+                fmt.Println("Follower name : ", name, lastName)
+        }</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                fmt.Println(err.Error())
+        }</span>
+
+        <span class="cov0" title="0">bus.Emit(newFollowerE, "hello")</span>
+
+        // OUTPUT:
+        //
+        // Follower name :  hello
+        // You have new follower!
+        // NEW FOLLOWER:  hello
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package main
+
+import (
+        "fmt"
+        "time"
+
+        "github.com/mykytaserdiuk/fluxo"
+)
+
+const (
+        onExit = "manager:on_exit"
+)
+
+func mainOnce() <span class="cov0" title="0">{
+        bus := fluxo.NewEventBus()
+        t := time.Date(2025, 12, 31, 12, 12, 12, 12, time.UTC)
+
+        bus.SubscribeOnce(onExit, func(t time.Time) </span><span class="cov0" title="0">{
+                fmt.Println("Once sub: " + t.String())
+        }</span>)
+        <span class="cov0" title="0">bus.Subscribe(onExit, func(t time.Time) </span><span class="cov0" title="0">{
+                fmt.Println("Simple sub: " + t.String())
+        }</span>)
+        <span class="cov0" title="0">bus.Emit(onExit, t)
+        bus.Emit(onExit, t)</span>
+
+        // OUTPUT:
+        //
+        // Simple sub: 2025-12-31 12:12:12.000000012 +0000 UTC
+        // Once sub: 2025-12-31 12:12:12.000000012 +0000 UTC
+        // Simple sub: 2025-12-31 12:12:12.000000012 +0000 UTC
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package main
+
+import (
+        "fmt"
+
+        "github.com/mykytaserdiuk/fluxo"
+)
+
+const (
+        newReport = "hr:new_report"
+)
+
+func main() <span class="cov0" title="0">{
+        bus := fluxo.NewEventBus()
+        handler := func(data string) </span><span class="cov0" title="0">{
+                fmt.Println("New message from HR: ", data)
+        }</span>
+
+        <span class="cov0" title="0">err := bus.Subscribe(newReport, handler)
+        if err != nil </span><span class="cov0" title="0">{
+                fmt.Println(err.Error())
+        }</span>
+
+        <span class="cov0" title="0">bus.Emit(newReport, "we have a new sys.admin")
+        bus.Emit(newReport, "we need more computer in room 29")
+
+        _ = bus.Unsubscribe(newReport, handler)
+
+        bus.Emit(newReport, "we have some problem etc.") // we dont receive this message
+
+        err = bus.Unsubscribe(newReport, func(data string) </span>{<span class="cov0" title="0">}</span>)
+        <span class="cov0" title="0">if err != nil </span><span class="cov0" title="0">{
+                fmt.Println(err.Error())
+        }</span>
+        // OUTPUT:
+        //
+        // New message from HR:  we have a new sys.admin
+        // New message from HR:  we need more computer in room 29
+        // id hasn`t handlers
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
