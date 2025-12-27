@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mykytaserdiuk/fluxo/event"
+	"github.com/mykytaserdiuk/fluxo"
 )
 
 const (
@@ -12,7 +12,7 @@ const (
 )
 
 func mainOnce() {
-	bus := event.New()
+	bus := fluxo.New()
 	t := time.Date(2025, 12, 31, 12, 12, 12, 12, time.UTC)
 
 	bus.SubscribeOnce(onExit, func(t time.Time) {

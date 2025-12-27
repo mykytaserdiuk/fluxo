@@ -1,4 +1,4 @@
-package event
+package fluxo
 
 import (
 	"reflect"
@@ -17,12 +17,15 @@ type BusOnce interface {
 	SubscribeOnce(id string, fn any) error
 }
 type Bus interface {
+	// error if fn is not a function
 	Subscribe(id string, fn any) error
 	// Returns error if there are no callbacks subscribed to the topic.
 	Unsubscribe(id string, fn any) error
 	// Publish/Send a new event, where
 	// id is a topic or a event name
 	Emit(id string, args ...any)
+	// Close all handlers for the selected ID
+	Unregister(id string) error
 	BusOnce
 }
 
@@ -80,6 +83,8 @@ func (b *EventBus) callHandler(hand handler, args ...any) {
 }
 
 func (b *EventBus) removeHandler(id string, index int) {
+	b.Lock()
+	defer b.Unlock()
 	b.subs[id] = append(b.subs[id][:index], b.subs[id][index+1:]...)
 }
 
@@ -113,9 +118,6 @@ func (b *EventBus) Subscribe(id string, fn any) error {
 }
 
 func (b *EventBus) Unsubscribe(id string, fn any) error {
-	b.Lock()
-	defer b.Unlock()
-
 	handlers := b.subs[id]
 	if len(handlers) == 0 {
 		return ErrNoHandlers
@@ -136,4 +138,16 @@ func (b *EventBus) SubscribeOnce(id string, fn any) error {
 		callback: reflect.ValueOf(fn),
 		once:     true,
 	})
+}
+
+func (b *EventBus) Unregister(id string) error {
+	handlers := b.subs[id]
+	if len(handlers) == 0 {
+		return ErrNoHandlers
+	}
+	b.Lock()
+	defer b.Unlock()
+
+	b.subs[id] = []handler{}
+	return nil
 }

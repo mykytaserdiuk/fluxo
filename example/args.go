@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mykytaserdiuk/fluxo/event"
+	"github.com/mykytaserdiuk/fluxo"
 )
 
 const (
@@ -11,7 +11,7 @@ const (
 )
 
 func mainArgs() {
-	bus := event.New()
+	bus := fluxo.New()
 
 	// With args in func
 	err := bus.Subscribe(newFollowerE, func(name string) {

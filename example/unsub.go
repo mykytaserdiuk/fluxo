@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mykytaserdiuk/fluxo/event"
+	"github.com/mykytaserdiuk/fluxo"
 )
 
 const (
@@ -11,7 +11,7 @@ const (
 )
 
 func main() {
-	bus := event.New()
+	bus := fluxo.New()
 	handler := func(data string) {
 		fmt.Println("New message from HR: ", data)
 	}
