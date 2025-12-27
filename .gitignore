@@ -1,0 +1,5 @@
+# IDE folders
+.idea
+.vsc
+.vs
+*.exe
