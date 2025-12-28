@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/mykytaserdiuk/fluxo/bus.go (72.2%)</option>
+				<option value="file0">github.com/mykytaserdiuk/fluxo/bus.go (87.0%)</option>
 				
 				<option value="file1">github.com/mykytaserdiuk/fluxo/example/args.go (0.0%)</option>
 				
@@ -192,20 +192,20 @@ func (b *EventBus) Subscribe(id string, fn any) error <span class="cov8" title="
         })
 }</span>
 
-func (b *EventBus) Unsubscribe(id string, fn any) error <span class="cov0" title="0">{
+func (b *EventBus) Unsubscribe(id string, fn any) error <span class="cov8" title="1">{
         handlers := b.subs[id]
-        if len(handlers) == 0 </span><span class="cov0" title="0">{
+        if len(handlers) == 0 </span><span class="cov8" title="1">{
                 return ErrNoHandlers
         }</span>
-        <span class="cov0" title="0">for i, h := range handlers </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">for i, h := range handlers </span><span class="cov8" title="1">{
                 val := reflect.ValueOf(fn)
                 if h.callback.Type() == val.Type() &amp;&amp;
-                        h.callback.Pointer() == val.Pointer() </span><span class="cov0" title="0">{
+                        h.callback.Pointer() == val.Pointer() </span><span class="cov8" title="1">{
                         b.removeHandler(id, i)
                 }</span>
         }
 
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov8" title="1">return nil</span>
 }
 
 func (b *EventBus) SubscribeOnce(id string, fn any) error <span class="cov8" title="1">{

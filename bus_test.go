@@ -2,6 +2,7 @@ package fluxo
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -85,6 +86,41 @@ func TestSubscribeOnce(t *testing.T) {
 		count = 0
 	}
 }
+
+func TestUnsubscribe(t *testing.T) {
+	cases := []struct {
+		name          string
+		sub           bool
+		expectedError error
+	}{
+		{
+			name: "OK",
+			sub:  true,
+		},
+		{
+			name:          "NoSub",
+			sub:           false,
+			expectedError: ErrNoHandlers,
+		},
+	}
+	bus := NewEventBus()
+	id := "ubsub"
+	call := func(t *testing.T) { t.Error("emit was succefull") }
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			nid := id + fmt.Sprint(i)
+			if c.sub {
+				err := bus.Subscribe(nid, call)
+				assert.NoError(t, err)
+			}
+			err := bus.Unsubscribe(nid, call)
+			assert.Equal(t, c.expectedError, err)
+			bus.Emit(nid, t)
+		})
+	}
+}
+
 func TestArgsToValues(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -162,3 +198,58 @@ func TestPrepareArguments(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkEmit_WithArguments(b *testing.B) {
+	bus := NewEventBus()
+	bus.Subscribe("event", func(count *int) {
+		*count++
+	})
+	c := 0
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event", &c)
+	}
+}
+
+func BenchmarkEmit_NoArguments(b *testing.B) {
+	bus := NewEventBus()
+	bus.Subscribe("event", func() {})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event")
+	}
+}
+
+func BenchmarkSubscribe(b *testing.B) {
+	bus := NewEventBus()
+	fn := func(count *int) { *count++ }
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Subscribe("event", fn)
+	}
+}
+
+func BenchmarkMultipleSubscribers(b *testing.B) {
+	bus := NewEventBus()
+	bus.Subscribe("event", func(count *int) { *count++ })
+	bus.Subscribe("event", func(count *int) { *count++ })
+	bus.Subscribe("event", func(count *int) { *count++ })
+	c := 0
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event", &c)
+	}
+}
+
+// Benchmark result
+//
+// goos: windows
+// goarch: amd64
+// pkg: github.com/mykytaserdiuk/fluxo
+// cpu: 11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz
+// BenchmarkEmit_WithArguments-12           6618330               178.0 ns/op            24 B/op          1 allocs/op
+// BenchmarkEmit_NoArguments-12             9132231               128.3 ns/op             0 B/op          0 allocs/op
+// BenchmarkSubscribe-12                   13519893                87.46 ns/op          186 B/op          0 allocs/op
+// BenchmarkMultipleSubscribers-12          2244873               523.8 ns/op           168 B/op          4 allocs/op
+// PASS
+// ok      github.com/mykytaserdiuk/fluxo  7.151s

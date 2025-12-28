@@ -15,10 +15,10 @@ Fluxo is a Go implementation of the **Event Bus pattern**, a messaging architect
 ### Basic Example
 
 ```go
-import "github.com/mykytaserdiuk/fluxo/event"
+import "github.com/mykytaserdiuk/fluxo"
 
 // Create a bus
-bus := event.New()
+bus := fluxo.NewEventBus()
 
 // Subscribe to events
 bus.Subscribe("user:created", func(e Event) {
@@ -30,7 +30,7 @@ bus.Emit("user:created", Event{Data: "John"})
 ```
 You can subscribe to events with different argument signatures:
 ```go
-bus := event.New()
+bus := fluxo.NewEventBus()
 
 // Subscribe with args in handler
 bus.Subscribe("new_follower", func(name string) {
