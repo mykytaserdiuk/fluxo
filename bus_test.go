@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/mykytaserdiuk/fluxo/pool"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +38,8 @@ func TestSubscribe(t *testing.T) {
 			expectedError: ErrNotAFunc,
 		},
 	}
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
 	id := "sub_once"
 	count := 0
 
@@ -67,7 +69,9 @@ func TestSubscribeOnce(t *testing.T) {
 			finalCount: 0,
 		},
 	}
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
 	id := "sub_once"
 	count := 0
 	fn := func() {
@@ -103,11 +107,12 @@ func TestUnsubscribe(t *testing.T) {
 			expectedError: ErrNoHandlers,
 		},
 	}
-	bus := NewEventBus()
 	id := "ubsub"
 	call := func(t *testing.T) { t.Error("emit was succefull") }
 
 	for i, c := range cases {
+		pool := pool.NewCorePool()
+		bus := NewEventBus(pool)
 		t.Run(c.name, func(t *testing.T) {
 			nid := id + fmt.Sprint(i)
 			if c.sub {
@@ -116,7 +121,45 @@ func TestUnsubscribe(t *testing.T) {
 			}
 			err := bus.Unsubscribe(nid, call)
 			assert.Equal(t, c.expectedError, err)
+			assert.Equal(t, 0, len(bus.(*EventBus).subs[nid]))
 			bus.Emit(nid, t)
+		})
+	}
+}
+
+func TestUnregister(t *testing.T) {
+	id := "test_id"
+	type behaviour func(bus Bus, id string)
+	cases := []struct {
+		name          string
+		behaviour     behaviour
+		expectedError error
+	}{{
+		name: "OK",
+		behaviour: func(bus Bus, id string) {
+			bus.Subscribe(id, func() {})
+		},
+	}, {
+		name:          "No_Subs",
+		behaviour:     func(bus Bus, id string) {},
+		expectedError: ErrNoHandlers,
+	}, {
+		name: "Many_Subs",
+		behaviour: func(bus Bus, id string) {
+			bus.Subscribe(id, func() {})
+			bus.Subscribe(id, func() {})
+			bus.Subscribe(id, func() {})
+		},
+	}}
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+	for i, cs := range cases {
+		t.Run(cs.name, func(t *testing.T) {
+			newID := fmt.Sprintf("%s_%v", id, i)
+			cs.behaviour(bus, newID)
+			err := bus.Unregister(newID)
+			assert.Equal(t, cs.expectedError, err)
+			assert.Empty(t, len(bus.(*EventBus).subs[newID]))
 		})
 	}
 }
@@ -148,8 +191,8 @@ func TestArgsToValues(t *testing.T) {
 			expected: 3,
 		},
 	}
-
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -187,7 +230,8 @@ func TestPrepareArguments(t *testing.T) {
 		expectedResult: []reflect.Value{reflect.ValueOf(name1)},
 	}}
 
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
 	for _, cs := range cases {
 		t.Run(cs.name, func(t *testing.T) {
 			res := bus.(*EventBus).prepareArguments(handler{
@@ -200,7 +244,9 @@ func TestPrepareArguments(t *testing.T) {
 }
 
 func BenchmarkEmit_WithArguments(b *testing.B) {
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
 	bus.Subscribe("event", func(count *int) {
 		*count++
 	})
@@ -212,7 +258,9 @@ func BenchmarkEmit_WithArguments(b *testing.B) {
 }
 
 func BenchmarkEmit_NoArguments(b *testing.B) {
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
 	bus.Subscribe("event", func() {})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -221,7 +269,9 @@ func BenchmarkEmit_NoArguments(b *testing.B) {
 }
 
 func BenchmarkSubscribe(b *testing.B) {
-	bus := NewEventBus()
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
 	fn := func(count *int) { *count++ }
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -230,10 +280,62 @@ func BenchmarkSubscribe(b *testing.B) {
 }
 
 func BenchmarkMultipleSubscribers(b *testing.B) {
-	bus := NewEventBus()
-	bus.Subscribe("event", func(count *int) { *count++ })
-	bus.Subscribe("event", func(count *int) { *count++ })
-	bus.Subscribe("event", func(count *int) { *count++ })
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
+	c := 0
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event", &c)
+	}
+}
+
+func BenchmarkEmitAsync_WithArguments(b *testing.B) {
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
+	bus.SubscribeAsync("event", func(count *int) {
+		*count++
+	})
+	c := 0
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event", &c)
+	}
+}
+
+func BenchmarkEmit_NoArgumentsAsync(b *testing.B) {
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
+	bus.SubscribeAsync("event", func() {})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.Emit("event")
+	}
+}
+
+func BenchmarkSubscribeAsync(b *testing.B) {
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
+	fn := func(count *int) { *count++ }
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bus.SubscribeAsync("event", fn)
+	}
+}
+
+func BenchmarkMultipleSubscribersAsync(b *testing.B) {
+	pool := pool.NewCorePool()
+	bus := NewEventBus(pool)
+
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
+	bus.SubscribeAsync("event", func(count *int) { *count++ })
 	c := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -242,6 +344,7 @@ func BenchmarkMultipleSubscribers(b *testing.B) {
 }
 
 // Benchmark result
+// NO POOL
 //
 // goos: windows
 // goarch: amd64
@@ -253,3 +356,17 @@ func BenchmarkMultipleSubscribers(b *testing.B) {
 // BenchmarkMultipleSubscribers-12          2244873               523.8 ns/op           168 B/op          4 allocs/op
 // PASS
 // ok      github.com/mykytaserdiuk/fluxo  7.151s
+
+// WITH POOL
+// pkg: github.com/mykytaserdiuk/fluxo
+// cpu: 11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz
+
+// BenchmarkEmit_WithArguments-12          	 5742362	       212.5 ns/op	      40 B/op	       2 allocs/op
+// BenchmarkEmit_NoArguments-12            	 8999967	       134.1 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkSubscribe-12                   	14192054	        71.14 ns/op	     177 B/op	       0 allocs/op
+// BenchmarkMultipleSubscribers-12         	  794632	      1425 ns/op	     424 B/op	       8 allocs/op
+
+// BenchmarkEmitAsync_WithArguments-12     	 2318260	       509.1 ns/op	     120 B/op	       3 allocs/op
+// BenchmarkEmit_NoArgumentsAsync-12       	 2567932	       492.4 ns/op	      80 B/op	       1 allocs/op
+// BenchmarkSubscribeAsync-12              	15988488	        66.65 ns/op	     197 B/op	       0 allocs/op
+// BenchmarkMultipleSubscribersAsync-12    	  746212	      1442 ns/op	     424 B/op	       8 allocs/op

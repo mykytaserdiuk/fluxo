@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/mykytaserdiuk/fluxo"
+	"github.com/mykytaserdiuk/fluxo/pool"
 )
 
 const (
@@ -11,7 +12,7 @@ const (
 )
 
 func main() {
-	bus := fluxo.NewEventBus()
+	bus := fluxo.NewEventBus(pool.NewDefaultPool())
 	handler := func(data string) {
 		fmt.Println("New message from HR: ", data)
 	}

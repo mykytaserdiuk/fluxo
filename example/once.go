@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mykytaserdiuk/fluxo"
+	"github.com/mykytaserdiuk/fluxo/pool"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 )
 
 func mainOnce() {
-	bus := fluxo.NewEventBus()
+	bus := fluxo.NewEventBus(pool.NewCorePool())
 	t := time.Date(2025, 12, 31, 12, 12, 12, 12, time.UTC)
 
 	bus.SubscribeOnce(onExit, func(t time.Time) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/mykytaserdiuk/fluxo"
+	"github.com/mykytaserdiuk/fluxo/pool"
 )
 
 const (
@@ -11,7 +12,7 @@ const (
 )
 
 func mainArgs() {
-	bus := fluxo.NewEventBus()
+	bus := fluxo.NewEventBus(pool.NewDefaultPool())
 
 	// With args in func
 	err := bus.Subscribe(newFollowerE, func(name string) {

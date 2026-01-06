@@ -5,37 +5,57 @@ import (
 	"sync"
 )
 
+type GPool interface {
+	New(func())
+}
+
 type handler struct {
 	callback reflect.Value
 
 	// if true, will the handler be executed once
-	once bool
-	// add async
+	once  bool
+	async bool
 }
-type BusOnce interface {
+type BusOnceSync interface {
 	// the handler will be executed only once, can be unsubscribed
 	SubscribeOnce(id string, fn any) error
 }
-type Bus interface {
+type BusOnceAsync interface {
+	// the handler will be executed only once, can be unsubscribed
+	SubscribeOnceAsync(id string, fn any) error
+}
+
+type BusAsync interface {
+	// error if fn is not a function
+	SubscribeAsync(id string, fn any) error
+}
+type BusSync interface {
 	// error if fn is not a function
 	Subscribe(id string, fn any) error
-	// Returns error if there are no callbacks subscribed to the topic.
-	Unsubscribe(id string, fn any) error
+}
+type Bus interface {
 	// Publish/Send a new event, where
 	// id is a topic or a event name
 	Emit(id string, args ...any)
 	// Close all handlers for the selected ID
 	Unregister(id string) error
-	BusOnce
+	// Returns error if there are no callbacks subscribed to the topic.
+	Unsubscribe(id string, fn any) error
+	BusSync
+	BusAsync
+	BusOnceSync
+	BusOnceAsync
 }
 
 type EventBus struct {
 	subs map[string][]handler
+	pool GPool
 	sync.Mutex
 }
 
-func NewEventBus() Bus {
+func NewEventBus(pool GPool) Bus {
 	return &EventBus{
+		pool:  pool,
 		subs:  map[string][]handler{},
 		Mutex: sync.Mutex{},
 	}
@@ -98,20 +118,31 @@ func (b *EventBus) Emit(id string, args ...any) {
 
 	for i := len(handlers) - 1; i >= 0; i-- {
 		hand := handlers[i]
-		b.callHandler(hand, args...)
-
-		if hand.once {
-			b.Lock()
-			b.removeHandler(id, i)
-			b.Unlock()
+		if !hand.async {
+			b.callHandler(hand, args...)
+			if hand.once {
+				b.Lock()
+				b.removeHandler(id, i)
+				b.Unlock()
+			}
+		} else {
+			b.pool.New(func() { b.callHandler(hand, args...) })
+			if hand.once {
+				b.Lock()
+				b.pool.New(func() { b.removeHandler(id, i) })
+				b.Unlock()
+			}
 		}
+
 	}
 }
 
+// Sync
 func (b *EventBus) Subscribe(id string, fn any) error {
 	return b.onSubscribe(id, fn, handler{
 		callback: reflect.ValueOf(fn),
 		once:     false,
+		async:    false,
 	})
 }
 
@@ -124,7 +155,11 @@ func (b *EventBus) Unsubscribe(id string, fn any) error {
 		val := reflect.ValueOf(fn)
 		if h.callback.Type() == val.Type() &&
 			h.callback.Pointer() == val.Pointer() {
-			b.removeHandler(id, i)
+			if !h.async {
+				b.removeHandler(id, i)
+			} else {
+				b.pool.New(func() { b.removeHandler(id, i) })
+			}
 		}
 	}
 
@@ -135,6 +170,7 @@ func (b *EventBus) SubscribeOnce(id string, fn any) error {
 	return b.onSubscribe(id, fn, handler{
 		callback: reflect.ValueOf(fn),
 		once:     true,
+		async:    false,
 	})
 }
 
@@ -148,4 +184,20 @@ func (b *EventBus) Unregister(id string) error {
 
 	b.subs[id] = []handler{}
 	return nil
+}
+
+func (b *EventBus) SubscribeAsync(id string, fn any) error {
+	return b.onSubscribe(id, fn, handler{
+		callback: reflect.ValueOf(fn),
+		once:     false,
+		async:    true,
+	})
+}
+
+func (b *EventBus) SubscribeOnceAsync(id string, fn any) error {
+	return b.onSubscribe(id, fn, handler{
+		callback: reflect.ValueOf(fn),
+		once:     true,
+		async:    true,
+	})
 }
